@@ -1,0 +1,21 @@
+#gameBoard {
+  border: 2px black solid;
+  margin: auto;
+  display: block;
+}
+
+h1, h2 {
+  text-align: center;
+}
+
+#game-over {
+  color: rgb(175, 49, 49);
+}
+
+#game-win {
+  color: rgb(14, 129, 48);
+}
+
+.hide {
+  display: none;
+}
