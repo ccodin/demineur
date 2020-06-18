@@ -86,6 +86,4 @@ export default class Cell {
   setTextColor(newColor) {
     this.textColor = newColor;
   }
-
-
 }

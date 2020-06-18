@@ -2,6 +2,7 @@ import Board from './Board.js';
 
 export default class Main {
   board = null;
+  timerIsRunning = false;
 
   constructor() {
     this.defCustomProperties();
@@ -13,7 +14,6 @@ export default class Main {
 
     this.setListeners();
     this.appendLeftBombsToDocument(this.board.totalBombs);
-    
   }
 
   setListeners() {
@@ -27,9 +27,11 @@ export default class Main {
   defCustomProperties() {
     const gameOverElt   = document.querySelector('#game-over');
     const gameWinElt    = document.querySelector('#game-win');
+    const timerElt      = document.querySelector('#game-timer');
 
     let gameOver        = false;
     let gameWin         = false;
+    let timer           = 0;
 
     Object.defineProperty(this, 'gameOver', {
       set(newVal) {
@@ -52,6 +54,24 @@ export default class Main {
         return gameWin
       }
     })
+
+    Object.defineProperty(this, 'timer', {
+      set(newVal) {
+        timerElt.innerText = newVal;
+        timer = newVal;
+      },
+      get() {
+        return timer
+      }
+    })
+  }
+
+  updateTimer() {
+    this.timerIsRunning = true;
+    setTimeout(() => {
+      if (!this.win && !this.gameOver) this.updateTimer()
+      this.timer++;
+    }, 1000)
   }
 
   appendLeftBombsToDocument(bombs) {
@@ -59,9 +79,10 @@ export default class Main {
   }
 
   lookForClickCandidate(e) {
+    if (!this.timerIsRunning) this.updateTimer();
     if (this.gameOver || this.win) return;
-    const x = e.x - e.target.offsetLeft; // Remove potential margins
-    const y = e.y - e.target.offsetTop; // Remove potential margins
+    const x = e.x - e.target.offsetLeft - window.scrollX; // Remove potential margins
+    const y = e.y - e.target.offsetTop + window.scrollY; // Remove potential margins
     const mouse = {x, y};
 
     const buttons = this.board.buttons;

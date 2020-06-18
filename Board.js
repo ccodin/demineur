@@ -12,8 +12,8 @@ export default class Board {
   canvas          = null;
   cells           = [];
   flags           = [];
-  cellSize        = 28; // Size of cell in px
-  cellsByRow      = 10;
+  cellSize        = 20; // Size of cell in px
+  cellsByRow      = 40;
   cellsByCol      = this.cellsByRow;
   ctx             = null;
   events          = {};
@@ -22,8 +22,9 @@ export default class Board {
   margin          = Math.round(this.cellSize / 6);
   queue           = [];
   totalCells      = this.cellsByRow * this.cellsByRow;
-  totalBombs      = Math.ceil(this.totalCells / 7);
+  totalBombs      = Math.ceil(this.totalCells / 6);
   background      = 'grey';
+  indexBeforeCrash = 0;
 
   constructor(cellSize, cellsByRow, cellsByCol, totalBombs) {
     this.cellSize   = cellSize ? cellSize : this.cellSize;
@@ -39,7 +40,7 @@ export default class Board {
     this.defCustomProperties();
     this.fillCells();
     this.addBombsInCells();
-    this.addHintsValuesInCells();
+    this.addHintsValuesInCells(0);
     this.draw();
   }
 
@@ -95,16 +96,16 @@ export default class Board {
   fillCells() {
     this.cells = new Array(this.totalCells);
 
-    for (let i = 0; i < this.cells.length; i++) {
-      const x               = this.margin + (i % this.cellsByRow) * (this.cellSize + this.margin);
-      const y               = this.margin + Math.floor(i / this.cellsByRow) * (this.cellSize + this.margin);
+    for (let cellIndex = 0; cellIndex < this.cells.length; cellIndex++) {
+      const x               = this.margin + (cellIndex % this.cellsByRow) * (this.cellSize + this.margin);
+      const y               = this.margin + Math.floor(cellIndex / this.cellsByRow) * (this.cellSize + this.margin);
       
       const cell            = new Cell(this.canvas, x, y, this.cellSize, this.cellSize, 0);
-      const onMouseEvent    = (e) => {this.onMouseEvent(e, cell, i)};
+      const onMouseEvent    = (e) => {this.onMouseEvent(e, cellIndex)};
       const button          = new Button(x, y, this.cellSize, this.cellSize, onMouseEvent);
 
-      this.cells[i]         = cell;
-      this.buttons[i]       = button;
+      this.cells[cellIndex]         = cell;
+      this.buttons[cellIndex]       = button;
     }
   }
 
@@ -120,10 +121,7 @@ export default class Board {
       if (this.cells[randIndex] instanceof Bomb) continue;
       
       const {canvas,x,y,width,height}   = this.cells[randIndex];
-      const onMouseEvent                = (e) => {this.onMouseEvent(e, this.cells[randIndex], randIndex)};
       this.cells[randIndex]             = new Bomb(canvas, x, y, width, height, undefined);
-      const button                      = new Button(x, y, this.cellSize, this.cellSize, onMouseEvent);
-      this.buttons[randIndex]           = button;
       
       this.bombsIndexes.push(randIndex);
       total--;
@@ -134,10 +132,13 @@ export default class Board {
    * Add number hints around Bomb objects. 
    * It calls check() methods, wich is a recursive method, on the very first Bomb
    */
-  addHintsValuesInCells() {
-    this.check(this.cells, this.bombsIndexes[0]);
+  addHintsValuesInCells(indexToStart) {    
+    try {
+      this.check(this.cells, this.bombsIndexes[indexToStart]);
+    } catch(e) {
+      this.addHintsValuesInCells(this.indexBeforeCrash);
+    }
   }
-
   /**
    * For each Bomb object, it will increment its siblings Cells
    * 
@@ -146,7 +147,6 @@ export default class Board {
    */
   check(cells, index) {
     const cell = cells[index];
-
     if (cell instanceof Bomb) {
       const actionOnEachCell = (surroundingCells) => {
         surroundingCells.map(((surroundingCellIndex) => {
@@ -157,11 +157,14 @@ export default class Board {
         }))
         const i = this.bombsIndexes.indexOf(index);
         if (this.bombsIndexes[i + 1] !== undefined) {
+          this.indexBeforeCrash = i + 1
           this.check(this.cells, this.bombsIndexes[i + 1])
         }
       }
 
       this.mapOnSurroundingCells(index, actionOnEachCell);
+    } else {
+      console.log('not a bomb')
     }
   }
 
@@ -173,10 +176,10 @@ export default class Board {
    * @param {Function} callback 
    */
   mapOnSurroundingCells(index, callback) {
-    const isOnTop = Math.floor(index / this.cellsByRow) === 0;
-    const isOnBottom = index + this.cellsByRow > this.cells.length - 1;
-    const isOnLeft = index % this.cellsByRow === 0;
-    const isOnRight = (index + 1) % this.cellsByRow === 0;
+    const isOnTop               = Math.floor(index / this.cellsByRow) === 0;
+    const isOnBottom            = index + this.cellsByRow > this.cells.length - 1;
+    const isOnLeft              = index % this.cellsByRow === 0;
+    const isOnRight             = (index + 1) % this.cellsByRow === 0;
 
     const leftCellIndex         = isOnLeft ? undefined : index - 1;
     const topCellIndex          = isOnTop ? undefined : index - this.cellsByRow;
@@ -237,8 +240,9 @@ export default class Board {
    * @param {Cell} cell 
    * @param {number} index Current Cell index (position in <Array>cells)
    */
-  onClick(event, cell, index) {
-    if (this.cells[index] instanceof Flag) return;
+  onClick(event, index) {
+    const cell = this.cells[index];
+    if (cell instanceof Flag) return;
     
     if (cell instanceof Bomb) this.handleLose();
     if (cell instanceof Cell && cell.value === 0 ) this.clearEmptyCells(this.cells, index);
@@ -290,7 +294,7 @@ export default class Board {
    * @param {Cell} cell 
    * @param {number} index Current Cell index (position in <Array>cells)
    */
-  onContextMenu(event, scell, index) {
+  onContextMenu(event, index) {
     event.preventDefault();
     const cell = this.cells[index];
     
