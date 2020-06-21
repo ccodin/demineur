@@ -6,7 +6,7 @@ export default class Bomb extends Cell {
 
     this.value          = '💣';
     this.xPadding       = this.width / 7;
-    this.yPadding       = this.height / 1.3;
+    this.yPadding       = this.height / 1.6;
   }
 
   reveal() {

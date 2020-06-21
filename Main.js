@@ -69,7 +69,8 @@ export default class Main {
   updateTimer() {
     this.timerIsRunning = true;
     setTimeout(() => {
-      if (!this.win && !this.gameOver) this.updateTimer()
+      if (this.win || this.gameOver) return;
+      this.updateTimer()
       this.timer++;
     }, 1000)
   }
@@ -81,7 +82,7 @@ export default class Main {
   lookForClickCandidate(e) {
     if (!this.timerIsRunning) this.updateTimer();
     if (this.gameOver || this.win) return;
-    const x = e.x - e.target.offsetLeft - window.scrollX; // Remove potential margins
+    const x = e.x - e.target.offsetLeft + window.scrollX; // Remove potential margins
     const y = e.y - e.target.offsetTop + window.scrollY; // Remove potential margins
     const mouse = {x, y};
 

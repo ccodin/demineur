@@ -7,50 +7,49 @@ import Flag from './Flag.js';
  * @todo Adjuust mouse position if user has scrolled into view
  */
 export default class Board {
-  bombsIndexes    = [];
+  bombsPosition   = [];
   buttons         = [];
   canvas          = null;
-  cells           = [];
+  cells2D         = [];
   flags           = [];
-  cellSize        = 20; // Size of cell in px
-  cellsByRow      = 40;
-  cellsByCol      = this.cellsByRow;
+  cellSize        = 60; // Size of cell in px
+  cols            = 10;
+  rows            = this.cols;
   ctx             = null;
   events          = {};
   gameOver        = false;
   lose            = false;
-  margin          = Math.round(this.cellSize / 6);
-  queue           = [];
-  totalCells      = this.cellsByRow * this.cellsByRow;
-  totalBombs      = Math.ceil(this.totalCells / 6);
+  totalCells      = this.cols * this.rows;
+  totalBombs      = Math.ceil(this.totalCells / 10);
   background      = 'grey';
-  indexBeforeCrash = 0;
+  cells2DCoords    = [];
 
-  constructor(cellSize, cellsByRow, cellsByCol, totalBombs) {
+  constructor(cellSize, cols, rows, totalBombs) {
+    
     this.cellSize   = cellSize ? cellSize : this.cellSize;
-    this.cellsByRow = cellsByRow ? cellsByRow : this.cellsByRow;
-    this.cellsByCol = cellsByCol ? cellsByCol : this.cellsByCol;
+    this.cols = cols ? cols : this.cols;
+    this.rows = rows ? rows : this.rows;
     this.totalBombs = totalBombs ? totalBombs : this.totalBombs;
 
     this.canvas     = document.querySelector('#gameBoard');
     this.ctx        = this.canvas.getContext('2d');
 
-    this.updateCanvasSize();
+    this.updateCanvasSize2D();
     this.drawBackground();
     this.defCustomProperties();
-    this.fillCells();
-    this.addBombsInCells();
-    this.addHintsValuesInCells(0);
-    this.draw();
+    this.fillCells2D();
+    this.addBombsInCells2D();
+    this.check2D();
+    this.drawCells2D();
   }
 
   /**
    * Update canvas size depending on total numbers of Cells and their size
    * /!\ You can't change canvas size with CSS !
    */
-  updateCanvasSize() {
-    const width = this.margin + this.cellsByRow * (this.cellSize + this.margin);
-    const height = this.margin + this.cellsByCol * (this.cellSize + this.margin);
+  updateCanvasSize2D() {
+    const width = this.cols * this.cellSize;
+    const height = this.rows * this.cellSize;
 
     this.canvas.setAttribute('width', width);
     this.canvas.setAttribute('height', height);
@@ -70,42 +69,65 @@ export default class Board {
    * on each calls. You can view it like tiny Observers
    */
   defCustomProperties() {
-    const that = this;
-
-    Object.defineProperty(this.flags, 'push', {
-      value: function mutator(args) {
-        const totalFlags = Array.prototype.push.call(this, args);
-        that.emit('flags:updated', that.totalBombs - totalFlags);
-        return totalFlags;
-      }
-    });
-
-    Object.defineProperty(this.flags, 'splice', {
-      value: function mutator(...args) {
-        const totalFlags = Array.prototype.splice.call(this, ...args);
-        that.emit('flags:updated', that.totalBombs - that.flags.length);
-        return totalFlags;
+    let bombsLeft = this.totalBombs;
+    Object.defineProperty(this, 'bombsLeft', {
+      set(newVal) {
+        this.emit('flags:updated', newVal);
+        bombsLeft = newVal
+      },
+      get() {
+        return bombsLeft
       }
     });
   }
 
   /**
-   * Fill '<Array>cells' with Cell Objects. 
+   * Fill '<Array>cells2D' with Cell Objects. 
    * '<Array>Buttons' will be filled too, sharing the same size / coordinates than Cell objects.
    */
-  fillCells() {
-    this.cells = new Array(this.totalCells);
+  fillCells2D() {
+    const cols = new Array(this.cols);
+    const rows = new Array(this.rows);
 
-    for (let cellIndex = 0; cellIndex < this.cells.length; cellIndex++) {
-      const x               = this.margin + (cellIndex % this.cellsByRow) * (this.cellSize + this.margin);
-      const y               = this.margin + Math.floor(cellIndex / this.cellsByRow) * (this.cellSize + this.margin);
-      
-      const cell            = new Cell(this.canvas, x, y, this.cellSize, this.cellSize, 0);
-      const onMouseEvent    = (e) => {this.onMouseEvent(e, cellIndex)};
-      const button          = new Button(x, y, this.cellSize, this.cellSize, onMouseEvent);
+    for(let i = 0; i < cols.length; i++) {
+      this.cells2D[i] = !this.cells2D[i] ? this.cells2D[i] = [] : this.cells2D[i];
+      for(let j = 0; j < rows.length; j++) {
+        const x               = i * this.cellSize;
+        const y               = j * this.cellSize;
+        const cell            = new Cell(this.canvas, x, y, this.cellSize, this.cellSize, 0);
+        const onMouseEvent    = (e) => {this.onMouseEvent2D(e, {col: i, row: j})};
+        const button          = new Button(x, y, this.cellSize, this.cellSize, onMouseEvent);
+        this.cells2D[i][j]    = cell;
+        this.cells2DCoords.push([i, j]);
+        this.buttons.push(button);
+      }
+    }
+  }
 
-      this.cells[cellIndex]         = cell;
-      this.buttons[cellIndex]       = button;
+  /**
+   * Increment vvalue of each Cell wich is a Bomb's sibling
+   */
+  check2D() {
+    let col = 0, row = 0;
+    for(let i = 0; i < this.cells2D.length; i++) {
+      for(let j = 0; j < this.cells2D[i].length; j++) {
+        if (this.cells2D[i][j] instanceof Bomb) {
+          continue
+        }
+        for(let xOffset = -1; xOffset <= 1; xOffset++) {
+          col = i + xOffset;
+          if (col < 0 || col >= this.cells2D.length) {continue};
+
+          for(let yOffset = -1; yOffset <= 1; yOffset++) {
+            row = j + yOffset;
+            if (row < 0 || row >= this.cells2D[i].length) {continue};
+
+            if (this.cells2D[col][row] instanceof Bomb) {
+              this.cells2D[i][j].value++
+            }
+          }
+        }
+      }
     }
   }
 
@@ -113,103 +135,34 @@ export default class Board {
    * Randomly add Bomb objects in '<Array>cells'
    * The '<Array>bombIndexes' will be fill to keep track of Bombs indexes
    */
-  addBombsInCells() {
+  addBombsInCells2D() {
     let total = this.totalBombs;
+    console.log(total)
     while (total > 0) {
       const randIndex = parseInt(Math.random() * (this.totalCells))
       
-      if (this.cells[randIndex] instanceof Bomb) continue;
+      const cellCoords                        = this.cells2DCoords[randIndex];
+      const col                               = cellCoords[0];
+      const row                               = cellCoords[1];
+
+      if (this.cells2D[col][row] instanceof Bomb) continue;
+
+        const {canvas,x,y,width,height}         = this.cells2D[col][row];
+        this.cells2D[col][row]                  = new Bomb(canvas, x, y, width, height, undefined);
       
-      const {canvas,x,y,width,height}   = this.cells[randIndex];
-      this.cells[randIndex]             = new Bomb(canvas, x, y, width, height, undefined);
-      
-      this.bombsIndexes.push(randIndex);
+        this.bombsPosition.push([col, row])
       total--;
     }
   }
-
-  /**
-   * Add number hints around Bomb objects. 
-   * It calls check() methods, wich is a recursive method, on the very first Bomb
-   */
-  addHintsValuesInCells(indexToStart) {    
-    try {
-      this.check(this.cells, this.bombsIndexes[indexToStart]);
-    } catch(e) {
-      this.addHintsValuesInCells(this.indexBeforeCrash);
-    }
-  }
-  /**
-   * For each Bomb object, it will increment its siblings Cells
-   * 
-   * @param {Cell[]} cells 
-   * @param {number} index Current Cell index (position in <Array>cells)
-   */
-  check(cells, index) {
-    const cell = cells[index];
-    if (cell instanceof Bomb) {
-      const actionOnEachCell = (surroundingCells) => {
-        surroundingCells.map(((surroundingCellIndex) => {
-          const cell = this.cells[surroundingCellIndex];
-          if (!(cell instanceof Bomb) && cell !== undefined) {
-            cell.value += 1;
-          }
-        }))
-        const i = this.bombsIndexes.indexOf(index);
-        if (this.bombsIndexes[i + 1] !== undefined) {
-          this.indexBeforeCrash = i + 1
-          this.check(this.cells, this.bombsIndexes[i + 1])
-        }
-      }
-
-      this.mapOnSurroundingCells(index, actionOnEachCell);
-    } else {
-      console.log('not a bomb')
-    }
-  }
-
-  /**
-   * Get all Bomb siblings (max: 8) and pass them into a callback.
-   * 
-   * @todo Use graph of nodes to improve perf
-   * @param {number} index Current Bomb index (position in <Array>cells)
-   * @param {Function} callback 
-   */
-  mapOnSurroundingCells(index, callback) {
-    const isOnTop               = Math.floor(index / this.cellsByRow) === 0;
-    const isOnBottom            = index + this.cellsByRow > this.cells.length - 1;
-    const isOnLeft              = index % this.cellsByRow === 0;
-    const isOnRight             = (index + 1) % this.cellsByRow === 0;
-
-    const leftCellIndex         = isOnLeft ? undefined : index - 1;
-    const topCellIndex          = isOnTop ? undefined : index - this.cellsByRow;
-    const rightCellIndex        = isOnRight ? undefined : index + 1;
-    const bottomCellIndex       = isOnBottom ? undefined : index + this.cellsByRow;
-    const leftTopCellIndex      = isOnLeft || isOnTop ? undefined : index - this.cellsByRow - 1;
-    const rightTopCellIndex     = isOnRight || isOnTop ? undefined : index - this.cellsByRow + 1;
-    const leftBottomCellIndex   = isOnLeft || isOnBottom ? undefined : index + this.cellsByRow - 1;
-    const rightBottomCellIndex  = isOnRight || isOnBottom ? undefined : index + this.cellsByRow + 1;      
-
-    const surroundings = [
-      leftCellIndex, 
-      topCellIndex, 
-      rightCellIndex, 
-      bottomCellIndex,
-      leftTopCellIndex,
-      rightTopCellIndex,
-      leftBottomCellIndex,
-      rightBottomCellIndex
-    ];
-
-    callback(surroundings);
-  }
-
+  
   /**
    * Draw all Cell objects in their init state (grey with no value)
    */
-  draw() {
-    for (let i = 0, len = this.cells.length; i < len; i++) {
-      this.cells[i].draw();
+  drawCells2D() {
+    for(let i = 0; i < this.cols; i++) {
+      for(let j = 0; j < this.rows; j++) {
+        this.cells2D[i][j].draw();
+      }
     }
   }
 
@@ -220,12 +173,11 @@ export default class Board {
    * and then are dispatched here.
    * 
    * @param {MouseEvent} event 
-   * @param {Cell} cell 
-   * @param {number} index Current Cell index (position in <Array>cells)
+   * @param {number[]} position Current Cell position (position in <Array>cells2D)
    */
-  onMouseEvent(event, cell, index) {
-    if (event.type === 'click') this.onClick(event, cell, index);
-    else this.onContextMenu(event, cell, index);
+  onMouseEvent2D(event, position) {
+    if (event.type === 'click') this.onClick2D(event, position);
+    else this.onContextMenu2D(event, position);
   }
 
   /**
@@ -237,16 +189,14 @@ export default class Board {
    * - End game (win) if user revealed all non-Bomb Cells
    * 
    * @param {MouseEvent} event 
-   * @param {Cell} cell 
-   * @param {number} index Current Cell index (position in <Array>cells)
+   * @param {number} position Current Cell position (position in <Array>cells2D)
    */
-  onClick(event, index) {
-    const cell = this.cells[index];
+  onClick2D(event, position) {
+    const cell = this.cells2D[position.col][position.row];
     if (cell instanceof Flag) return;
     
     if (cell instanceof Bomb) this.handleLose();
-    if (cell instanceof Cell && cell.value === 0 ) this.clearEmptyCells(this.cells, index);
-    
+    if (cell instanceof Cell && cell.value === 0 ) this.clearEmptyCells2D(position);
     cell.reveal();
     this.handleWin();
   }
@@ -255,29 +205,34 @@ export default class Board {
    * This will reveal() any Cell wich has a value of 0, or whose direct siblings
    * are not Bombs
    * 
-   * @param {Cell[]} cells 
-   * @param {number} index 
+   * @param {number[]} position 
    */
-  clearEmptyCells(cells, index) {
+  clearEmptyCells2D(position) {
     setTimeout(() => {
-      const cell = cells[index];
-      if (!(cell instanceof Bomb)) {
-        const actionOnEachCell = (surroundingCells) => {
-          surroundingCells.map(((surroundingCellIndex, index) => {
-            if (surroundingCellIndex === undefined) return;
-
-            const cell = this.cells[surroundingCellIndex];
-
-            if ((this.cells[surroundingCellIndex].value === 0) && this.queue.indexOf(surroundingCellIndex) < 0) {
-              this.queue.push(surroundingCellIndex);
-              this.clearEmptyCells(this.cells, surroundingCellIndex)
-            }
-            if (!cell.isRevealed) cell.reveal();            
-          }))
-        }
-        this.mapOnSurroundingCells(index, actionOnEachCell)
+      let col = 0, row = 0;
+      const i = position.col;
+      const j = position.row;
+      if (this.cells2D[i][j] instanceof Bomb) {
+        return;
       }
-      this.handleWin();
+        
+      for(let xOffset = -1; xOffset <= 1; xOffset++) {
+        col = i + xOffset;
+        if (col < 0 || col >= this.cells2D.length) {continue};
+
+        for(let yOffset = -1; yOffset <= 1; yOffset++) {
+          row = j + yOffset;
+          if (row < 0 || row >= this.cells2D[i].length) {continue};
+
+          if (!this.cells2D[col][row].isRevealed) {
+            this.cells2D[col][row].reveal();
+            this.handleWin();
+            if (this.cells2D[col][row].value === 0) {
+              this.clearEmptyCells2D({col, row});
+            }
+          }
+        }
+      }
     }, 16)
   }
 
@@ -291,32 +246,39 @@ export default class Board {
    * - Put back Cell object if 'question-mark' was drawn
    * 
    * @param {MouseEvent} event 
-   * @param {Cell} cell 
-   * @param {number} index Current Cell index (position in <Array>cells)
+   * @param {number[]} position Current Cell position (position in <Array>cells2D)
    */
-  onContextMenu(event, index) {
+  onContextMenu2D(event, position) {
     event.preventDefault();
-    const cell = this.cells[index];
+    const cell = this.cells2D[position.col][position.row];
     
-    if (!(cell instanceof Flag) && !cell.isRevealed) this.replaceCellByFlag(index);
+    if (!(cell instanceof Flag) && !cell.isRevealed) {
+      this.bombsLeft--;
+      this.replaceCellByFlag2D(position)
+    }
     else if (cell.value === Flag.flagPicto) cell.reveal(Flag.questionPicto);
-    else if (cell.value === Flag.questionPicto) this.replaceFlagByCell(index);
+    else if (cell.value === Flag.questionPicto) {
+      this.bombsLeft++;
+      this.replaceFlagByCell(position)
+    };
   }
 
   /**
-   * Remove Cell from 'cells' collection via its index and place it into
+   * Remove Cell from 'cells' collection via its position and place it into
    * 'flags' collection. 
-   * Then add a new Flag object at the index of the previous Cell.
+   * Then add a new Flag object at the position of the previous Cell.
    * 
-   * @param {number} index Current Cell index (position in <Array>cells)
+   * @param {number} position Current Cell position (position in <Array>cells2D)
    */
-  replaceCellByFlag(index) {
-    const cell                        = this.cells[index];
+  replaceCellByFlag2D(position) {
+    const cell                        = this.cells2D[position.col][position.row];
     const {canvas,x,y,width,height}   = cell;
     const flag                        = new Flag(canvas,x,y,width,height);
 
-    this.flags.push({cell, flag, index});
-    this.cells.splice(index, 1, flag);
+    if(!this.flags[position.col]) this.flags[position.col] = [];
+
+    this.flags[position.col][position.row] = cell;
+    this.cells2D[position.col][position.row] = flag;
 
     flag.reveal(Flag.flagPicto);
   }
@@ -325,14 +287,12 @@ export default class Board {
    * Get back the saved Cell from 'flags' collection via its index. 
    * Then remove Flag object from 'cells' collection and place the Cell instead.
    * 
-   * @param {number} index Current Flag index (position in <Array>cells)
+   * @param {number[]} position Current Flag position (position in <Array>cells2D)
    */
-  replaceFlagByCell(index) {
-    const flagIndex      = this.flags.findIndex((flag) => flag.flag === this.cells[index]);
-    const cell           = this.flags[flagIndex].cell;
-    
-    this.cells.splice(index, 1, cell)
-    this.flags.splice(flagIndex, 1)
+  replaceFlagByCell(position) {
+    const cell           = this.flags[position.col][position.row];
+    this.cells2D[position.col][position.row] = cell;
+    delete this.flags[position.col][position.row]
     cell.reset();
   }
 
@@ -340,7 +300,7 @@ export default class Board {
    * Check if game is won and emit an event if it is
    */
   handleWin() {
-    if (Cell.totalRevealed === this.cells.length - this.totalBombs) {
+    if (Cell.totalRevealed === this.totalCells -  this.totalBombs) {
       this.emit('game:win')
     }
   }
@@ -361,9 +321,11 @@ export default class Board {
    * Including flagged ones
    */
   revealAllBombs() {    
-    for(let i = 0, len = this.bombsIndexes.length; i < len; i++) {
-      const bombIndex = this.bombsIndexes[i];
-      const cell = this.cells[bombIndex];
+    for(let i = 0, len = this.bombsPosition.length; i < len; i++) {
+      const bombPosition = this.bombsPosition[i];
+      const col = bombPosition[0];
+      const row = bombPosition[1];
+      const cell = this.cells2D[col][row];
       if (cell) cell.reveal();
     }
     this.revealFlaggedBombs()
@@ -375,9 +337,13 @@ export default class Board {
    */
   revealFlaggedBombs() {
     for(let i = 0, len = this.flags.length; i < len; i++) {
-      const cell = this.flags[i].cell;
+      if (!this.flags[i]) return;
 
-      if (cell instanceof Bomb) cell.reveal()
+      for(let j = 0, len = this.flags[i].length; j < len; j++) {
+        const cell = this.flags[i][j];
+        if (cell instanceof Bomb) cell.reveal()
+      }
+
     }
   }
 

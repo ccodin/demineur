@@ -12,7 +12,7 @@ export default class Cell {
   color         = Cell.colorDefault;
   textColor     = Cell.textColorDefault;
   value         = null;
-  debug         = false;
+  debug         = true;
   isRevealed    = false;
   xPadding      = null;  
   yPadding      = null;
@@ -37,17 +37,20 @@ export default class Cell {
     this.color          = color;
     this.canvas         = canvas;
     this.ctx            = this.canvas.getContext('2d');
-    this.xPadding       = this.width / 2.4;
-    this.yPadding       = this.height / 1.4;
+    this.xPadding       = this.width / 2.5;
+    this.yPadding       = this.height / 1.5;
   }
 
   draw() {
-    this.ctx.fillStyle  = this.color;
     this.ctx.clearRect(this.x, this.y, this.width, this.height);
+    this.ctx.beginPath();
+    this.ctx.lineWidth = 2;
+    this.ctx.fillStyle  = this.color;    
     this.ctx.fillRect(this.x, this.y, this.width, this.height);
+    this.ctx.strokeRect(this.x, this.y, this.width, this.height);
 
     if ((this.isRevealed && this.value !== 0) || this.debug) {
-        this.ctx.font = `bold ${this.width / 1.5}px Arial`;
+        this.ctx.font = `bold ${this.width / 2}px Arial`;
         this.ctx.fillStyle  = this.textColor;
         this.ctx.fillText(this.value, this.x + this.xPadding, this.y + this.yPadding);
       }
