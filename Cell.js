@@ -12,7 +12,7 @@ export default class Cell {
   color         = Cell.colorDefault;
   textColor     = Cell.textColorDefault;
   value         = null;
-  debug         = true;
+  debug         = false;
   isRevealed    = false;
   xPadding      = null;  
   yPadding      = null;
